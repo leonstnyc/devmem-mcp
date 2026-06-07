@@ -3,7 +3,7 @@
 The HTTP API is optional. Install the API extra before starting it:
 
 ```bash
-pip install "devmem-mcp[api]"
+pip install "devmem-mcp[api] @ git+https://github.com/leonstnyc/devmem-mcp.git"
 devmem api --host 127.0.0.1 --port 8765
 ```
 

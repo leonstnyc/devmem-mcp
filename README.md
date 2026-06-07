@@ -12,7 +12,7 @@ Source: <https://github.com/leonstnyc/devmem-mcp>
 ## Install
 
 ```bash
-pipx install devmem-mcp
+pipx install "git+https://github.com/leonstnyc/devmem-mcp.git"
 devmem status
 devmem preflight-mcp
 ```
@@ -70,8 +70,8 @@ devmem embed-pending
 Use the distribution name when installing extras:
 
 ```bash
-pip install "devmem-mcp[openai]"
-pip install "devmem-mcp[api]"
+pip install "devmem-mcp[openai] @ git+https://github.com/leonstnyc/devmem-mcp.git"
+pip install "devmem-mcp[api] @ git+https://github.com/leonstnyc/devmem-mcp.git"
 ```
 
 OpenAI embeddings are enabled only when `OPENAI_API_KEY` is set and
@@ -93,8 +93,8 @@ configured.
 - Run `devmem preflight-mcp --quiet` before wiring an MCP client.
 - Set `DEVMEM_REPO_SLUG=owner/project` when using DevMem outside a Git clone.
 - Set `DEVMEM_SQLITE_PATH=.devmem/devmem.db` for a project-local database.
-- If an optional command reports a missing extra, install `devmem-mcp[...]` for
-  that feature.
+- If an optional command reports a missing extra, reinstall from GitHub with the
+  matching `devmem-mcp[...]` extra.
 
 See `docs/install.md`, `docs/configuration.md`, `docs/mcp-clients.md`,
 `docs/openai.md`, `docs/api.md`, `docs/privacy.md`, and

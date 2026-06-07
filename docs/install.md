@@ -5,7 +5,7 @@ Source repository: <https://github.com/leonstnyc/devmem-mcp>
 ## User Install
 
 ```bash
-pipx install devmem-mcp
+pipx install "git+https://github.com/leonstnyc/devmem-mcp.git"
 devmem status
 ```
 
@@ -14,7 +14,7 @@ devmem status
 ```bash
 python -m venv .venv
 . .venv/bin/activate
-pip install devmem-mcp
+pip install "git+https://github.com/leonstnyc/devmem-mcp.git"
 devmem preflight-mcp
 ```
 
@@ -32,6 +32,6 @@ the optional API server require extras.
 ## Optional Extras
 
 ```bash
-pip install "devmem-mcp[openai]"
-pip install "devmem-mcp[api]"
+pip install "devmem-mcp[openai] @ git+https://github.com/leonstnyc/devmem-mcp.git"
+pip install "devmem-mcp[api] @ git+https://github.com/leonstnyc/devmem-mcp.git"
 ```

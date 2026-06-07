@@ -430,7 +430,8 @@ def _run_api(args: argparse.Namespace) -> int:
         uvicorn = importlib.import_module("uvicorn")
     except ImportError as exc:
         raise OptionalFeatureError(
-            "The API server requires installing the 'devmem-mcp[api]' extra."
+            "The API server requires the 'api' extra. Install with: "
+            'pip install "devmem-mcp[api] @ git+https://github.com/leonstnyc/devmem-mcp.git"'
         ) from exc
     uvicorn.run(
         "devmem.api_server:create_app",

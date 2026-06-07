@@ -23,8 +23,9 @@ tests, scripts, and CI workflow.
 
 Public imports use `devmem`, while the installable distribution is
 `devmem-mcp` because the plain `devmem` PyPI project name is already occupied.
-The audit script assembles the legacy import pattern from fragments and scans
-public source, tests, docs, examples, and package metadata.
+Until a PyPI release is published, user-facing install commands use the public
+GitHub URL. The audit script assembles the legacy import pattern from fragments
+and scans public source, tests, docs, examples, and package metadata.
 
 ## DMST-03
 

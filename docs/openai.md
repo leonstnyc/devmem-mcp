@@ -4,7 +4,7 @@ DevMem works without API keys by using local hash embeddings. To use OpenAI
 embeddings instead:
 
 ```bash
-pip install "devmem-mcp[openai]"
+pip install "devmem-mcp[openai] @ git+https://github.com/leonstnyc/devmem-mcp.git"
 export OPENAI_API_KEY="..."
 devmem status
 ```
