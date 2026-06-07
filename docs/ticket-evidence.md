@@ -39,9 +39,9 @@ SQLite path expansion, and status output.
 
 ## DMST-05
 
-`[project.scripts]` exposes `devmem`. The CLI implements the required commands.
-MCP preflight spawns `python -m devmem mcp` with an argv list and an optional
-`.env` merge.
+`[project.scripts]` exposes `devmem`. The CLI implements the required commands,
+including the optional-extra `api` launcher. MCP preflight spawns
+`python -m devmem mcp` with an argv list and an optional `.env` merge.
 
 ## DMST-06
 
@@ -66,8 +66,9 @@ diagnosing, and feedback with tenant-scoped feedback keys.
 
 ## DMST-10
 
-OpenAI and API are isolated extras. Code search and skill sync are deferred in
-the release contract and are absent from the base MCP surface.
+OpenAI and API are isolated extras documented as `devmem-mcp[...]` installs.
+Code search and skill sync are deferred in the release contract and are absent
+from the base MCP surface.
 
 ## DMST-11
 
@@ -76,14 +77,15 @@ do not advertise a usable Postgres extra.
 
 ## DMST-12
 
-README, install docs, MCP client docs, configuration docs, privacy docs, and
-examples match the implemented CLI and MCP surface.
+README, install docs, MCP client docs, OpenAI docs, API docs, configuration
+docs, privacy docs, development docs, and examples match the implemented CLI and
+MCP surface.
 
 ## DMST-13
 
 CI runs Python 3.11, 3.12, and 3.13. It runs tests, lint, type check, build,
-fresh install/import smoke checks, MCP preflight, forbidden-pattern scans, and
-artifact inspection.
+fresh install/import smoke checks, API command help, MCP preflight,
+forbidden-pattern scans, optional extra smoke checks, and artifact inspection.
 
 ## DMST-14
 

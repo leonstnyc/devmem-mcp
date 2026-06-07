@@ -12,7 +12,8 @@
     "feedback",
     "preflight-mcp",
     "cleanup-mcp",
-    "embed-pending"
+    "embed-pending",
+    "api"
   ],
   "required_base_mcp_tools": [
     "devmem_report",
@@ -28,7 +29,8 @@
     { "fragments": ["/AI", "-agents"] },
     { "fragments": ["packages/", "coeffect", "_devmem"] },
     { "fragments": ["src/", "coeffect", "_devmem"] },
-    { "fragments": ["CO", "EFFECT_"] }
+    { "fragments": ["CO", "EFFECT_"] },
+    { "fragments": ["devmem", "["] }
   ],
   "optional_features": {
     "openai": "extra",
@@ -48,6 +50,8 @@
   "public_audit_paths": [
     ".github",
     ".gitignore",
+    "CONTRIBUTING.md",
+    "LICENSE",
     "MANIFEST.in",
     "src",
     "tests",

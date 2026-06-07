@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 import tarfile
 import tomllib
 import zipfile
@@ -105,6 +106,63 @@ def audit_metadata(root: Path, contract: dict[str, object]) -> list[str]:
     return failures
 
 
+def _required_strings(contract: dict[str, object], key: str) -> set[str]:
+    values = contract.get(key)
+    if not isinstance(values, list) or not all(isinstance(value, str) for value in values):
+        return set()
+    return set(values)
+
+
+def audit_runtime_surface(root: Path, contract: dict[str, object]) -> list[str]:
+    failures: list[str] = []
+    src_path = str(root / "src")
+    if src_path not in sys.path:
+        sys.path.insert(0, src_path)
+
+    required_commands = _required_strings(contract, "required_commands")
+    if not required_commands:
+        failures.append("release contract required_commands must be a non-empty string list")
+    else:
+        try:
+            from devmem.__main__ import build_parser
+
+            parser = build_parser()
+            choices = {}
+            for action in parser._actions:
+                action_choices = getattr(action, "choices", None)
+                if isinstance(action_choices, dict) and "mcp" in action_choices:
+                    choices = action_choices
+                    break
+            actual_commands = set(choices)
+        except Exception as exc:
+            failures.append(
+                f"failed to inspect CLI commands: {type(exc).__name__}: {str(exc)[:200]}"
+            )
+        else:
+            if actual_commands != required_commands:
+                failures.append(
+                    "CLI command mismatch: "
+                    f"expected {sorted(required_commands)}, got {sorted(actual_commands)}"
+                )
+
+    required_tools = _required_strings(contract, "required_base_mcp_tools")
+    if not required_tools:
+        failures.append("release contract required_base_mcp_tools must be a non-empty string list")
+    else:
+        try:
+            from devmem.mcp_server import BASE_TOOL_NAMES
+        except Exception as exc:
+            failures.append(f"failed to inspect MCP tools: {type(exc).__name__}: {str(exc)[:200]}")
+        else:
+            actual_tools = set(BASE_TOOL_NAMES)
+            if actual_tools != required_tools:
+                failures.append(
+                    "MCP tool mismatch: "
+                    f"expected {sorted(required_tools)}, got {sorted(actual_tools)}"
+                )
+    return failures
+
+
 def audit_artifacts(root: Path, dist: Path, contract: dict[str, object]) -> list[str]:
     failures: list[str] = []
     if not dist.exists():
@@ -142,6 +200,7 @@ def main() -> int:
     root = Path(args.root).resolve()
     contract = _load_contract(root)
     failures = audit_metadata(root, contract)
+    failures.extend(audit_runtime_surface(root, contract))
     failures.extend(audit_public_tree(root, contract))
     if args.dist:
         failures.extend(audit_artifacts(root, Path(args.dist), contract))

@@ -10,7 +10,7 @@ def create_app() -> Any:
         from fastapi import FastAPI  # type: ignore[import-not-found]
     except ImportError as exc:
         raise OptionalFeatureError(
-            "The API server requires installing the 'devmem[api]' extra."
+            "The API server requires installing the 'devmem-mcp[api]' extra."
         ) from exc
 
     from devmem.domain.config import DevMemConfig

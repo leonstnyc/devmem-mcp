@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import importlib
 import json
 import os
 import select
@@ -18,6 +19,7 @@ from typing import IO, Any
 
 from devmem.app.services import DevMemFeedbackRecorder, DevMemReporter, DevMemRetriever
 from devmem.domain.config import DevMemConfig
+from devmem.domain.errors import OptionalFeatureError
 from devmem.domain.models import DevMemNoteKind, FeedbackRating
 from devmem.infra.runtime import build_runtime
 
@@ -420,6 +422,25 @@ def _run_embed_pending(_: argparse.Namespace) -> int:
     return 0
 
 
+def _run_api(args: argparse.Namespace) -> int:
+    config = DevMemConfig()
+    host = args.host or config.host
+    port = args.port if args.port is not None else config.port
+    try:
+        uvicorn = importlib.import_module("uvicorn")
+    except ImportError as exc:
+        raise OptionalFeatureError(
+            "The API server requires installing the 'devmem-mcp[api]' extra."
+        ) from exc
+    uvicorn.run(
+        "devmem.api_server:create_app",
+        factory=True,
+        host=host,
+        port=port,
+    )
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="devmem")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -478,6 +499,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     embed_pending = subparsers.add_parser("embed-pending", help="retry pending note embeddings")
     embed_pending.set_defaults(func=_run_embed_pending)
+
+    api = subparsers.add_parser("api", help="run the optional HTTP API server")
+    api.add_argument("--host")
+    api.add_argument("--port", type=_positive_int)
+    api.set_defaults(func=_run_api)
 
     return parser
 

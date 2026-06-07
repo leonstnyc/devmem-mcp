@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from scripts.audit_release import audit_metadata, audit_public_tree
+from scripts.audit_release import audit_metadata, audit_public_tree, audit_runtime_surface
 
 
 def test_hook_templates_are_portable() -> None:
@@ -34,3 +34,10 @@ def test_release_metadata_audit_passes() -> None:
     contract = json.loads((root / "docs" / "release-contract.json").read_text())
 
     assert audit_metadata(root, contract) == []
+
+
+def test_release_runtime_surface_audit_passes() -> None:
+    root = Path(__file__).resolve().parents[1]
+    contract = json.loads((root / "docs" / "release-contract.json").read_text())
+
+    assert audit_runtime_surface(root, contract) == []

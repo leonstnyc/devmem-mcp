@@ -26,3 +26,10 @@ python -m build --sdist --wheel
 
 The base package uses SQLite and local hash embeddings. OpenAI embeddings and
 the optional API server require extras.
+
+## Optional Extras
+
+```bash
+pip install "devmem-mcp[openai]"
+pip install "devmem-mcp[api]"
+```

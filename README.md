@@ -12,7 +12,7 @@ embeddings. It does not need API keys or remote services.
 ```bash
 pipx install devmem-mcp
 devmem status
-devmem mcp
+devmem preflight-mcp
 ```
 
 For local development from this repository:
@@ -20,6 +20,17 @@ For local development from this repository:
 ```bash
 pip install -e ".[dev]"
 devmem status
+```
+
+## First Memory
+
+```bash
+devmem report \
+  --kind codebase_gotcha \
+  --summary-text "Tests need a repo slug" \
+  --text "Set DEVMEM_REPO_SLUG=owner/project before running MCP preflight."
+
+devmem search "repo slug"
 ```
 
 ## MCP Config
@@ -52,6 +63,22 @@ devmem preflight-mcp --quiet
 devmem embed-pending
 ```
 
+## Optional Extras
+
+Use the distribution name when installing extras:
+
+```bash
+pip install "devmem-mcp[openai]"
+pip install "devmem-mcp[api]"
+```
+
+OpenAI embeddings are enabled only when `OPENAI_API_KEY` is set and
+`DEVMEM_FORCE_LOCAL_EMBEDDER` is not enabled. The optional HTTP API starts with:
+
+```bash
+devmem api --host 127.0.0.1 --port 8765
+```
+
 ## Privacy
 
 DevMem writes notes, metadata, feedback, and embeddings to
@@ -59,5 +86,14 @@ DevMem writes notes, metadata, feedback, and embeddings to
 optional upgrade path and are used only when the OpenAI extra is installed and
 configured.
 
-See `docs/configuration.md`, `docs/mcp-clients.md`, and `docs/privacy.md` for
-the full setup details.
+## Troubleshooting
+
+- Run `devmem preflight-mcp --quiet` before wiring an MCP client.
+- Set `DEVMEM_REPO_SLUG=owner/project` when using DevMem outside a Git clone.
+- Set `DEVMEM_SQLITE_PATH=.devmem/devmem.db` for a project-local database.
+- If an optional command reports a missing extra, install `devmem-mcp[...]` for
+  that feature.
+
+See `docs/install.md`, `docs/configuration.md`, `docs/mcp-clients.md`,
+`docs/openai.md`, `docs/api.md`, `docs/privacy.md`, and
+`docs/development.md` for the full setup details.

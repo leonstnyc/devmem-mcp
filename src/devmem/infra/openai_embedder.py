@@ -17,7 +17,7 @@ class OpenAIEmbedder:
             from openai import OpenAI  # type: ignore[import-not-found]
         except ImportError as exc:
             raise OptionalFeatureError(
-                "OpenAI embeddings require installing the 'devmem[openai]' extra."
+                "OpenAI embeddings require installing the 'devmem-mcp[openai]' extra."
             ) from exc
         object.__setattr__(self, "_client", OpenAI(api_key=self.api_key))
 

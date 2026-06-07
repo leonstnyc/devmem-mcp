@@ -34,6 +34,7 @@ jobs:
           /tmp/devmem-smoke/bin/python -m pip install dist/*.whl
           /tmp/devmem-smoke/bin/python -I -c "import devmem; print(devmem.__file__)"
           /tmp/devmem-smoke/bin/devmem status
+          /tmp/devmem-smoke/bin/devmem api --help
           /tmp/devmem-smoke/bin/devmem preflight-mcp --quiet
       - name: Optional extras smoke
         run: |
@@ -42,4 +43,4 @@ jobs:
           /tmp/devmem-openai-smoke/bin/python -c "import openai; import devmem.infra.openai_embedder"
           python -m venv /tmp/devmem-api-smoke
           /tmp/devmem-api-smoke/bin/python -m pip install ".[api]"
-          /tmp/devmem-api-smoke/bin/python -c "import fastapi, uvicorn; import devmem.api_server"
+          /tmp/devmem-api-smoke/bin/python -c "import fastapi, uvicorn; from devmem.api_server import create_app; assert create_app().title == 'DevMem'"

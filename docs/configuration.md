@@ -17,7 +17,7 @@ All settings are environment variables. Values are read at runtime.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `OPENAI_API_KEY` | unset | Enables OpenAI embeddings when `devmem[openai]` is installed. |
+| `OPENAI_API_KEY` | unset | Enables OpenAI embeddings when `devmem-mcp[openai]` is installed. |
 | `DEVMEM_EMBEDDING_MODEL` | local hash model | Embedding model label. |
 | `DEVMEM_EMBEDDING_DIM` | `256` | Embedding dimension. |
 | `DEVMEM_DATABASE_URL` | unset | Reserved for future external database support. |

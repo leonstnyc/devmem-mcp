@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 
 from devmem.__main__ import build_parser, main
+from devmem.domain.errors import OptionalFeatureError
 
 
 def test_help_lists_required_commands_only() -> None:
@@ -32,6 +33,7 @@ def test_help_lists_required_commands_only() -> None:
         "preflight-mcp",
         "cleanup-mcp",
         "embed-pending",
+        "api",
     }
 
 
@@ -132,3 +134,43 @@ def test_cleanup_mcp_honors_age_gate(monkeypatch, capsys) -> None:
 
     assert main(["cleanup-mcp", "--all", "--dry-run"]) == 0
     assert "would kill PID 12345" in capsys.readouterr().out
+
+
+def test_api_command_uses_optional_uvicorn_launcher(monkeypatch) -> None:
+    import devmem.__main__ as main_module
+
+    calls: list[tuple[str, dict[str, Any]]] = []
+
+    class FakeUvicorn:
+        @staticmethod
+        def run(app: str, **kwargs: Any) -> None:
+            calls.append((app, kwargs))
+
+    def fake_import_module(name: str) -> object:
+        if name == "uvicorn":
+            return FakeUvicorn
+        raise AssertionError(f"unexpected import {name}")
+
+    monkeypatch.setattr(main_module.importlib, "import_module", fake_import_module)
+
+    assert main(["api", "--host", "0.0.0.0", "--port", "9999"]) == 0
+    assert calls == [
+        (
+            "devmem.api_server:create_app",
+            {"factory": True, "host": "0.0.0.0", "port": 9999},
+        )
+    ]
+
+
+def test_api_command_missing_extra_has_distribution_install_hint(monkeypatch) -> None:
+    import devmem.__main__ as main_module
+
+    def fake_import_module(name: str) -> object:
+        if name == "uvicorn":
+            raise ImportError("missing uvicorn")
+        raise AssertionError(f"unexpected import {name}")
+
+    monkeypatch.setattr(main_module.importlib, "import_module", fake_import_module)
+
+    with pytest.raises(OptionalFeatureError, match=r"devmem-mcp\[api\]"):
+        main(["api"])

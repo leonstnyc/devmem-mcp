@@ -12,6 +12,8 @@ audits.
 - Base MCP tools must match `required_base_mcp_tools` exactly.
 - Base import and `devmem status` must work without optional provider, API,
   database, skill-sync, or code-indexing packages.
+- Optional extras must be documented with the distribution name
+  `devmem-mcp[...]`; stale import-name extras install strings are invalid.
 - Public source, tests, docs, examples, metadata, wheel, and sdist must not
   contain any assembled forbidden pattern from the JSON contract.
 - Hook templates must be portable and degrade quietly when the `devmem` command
