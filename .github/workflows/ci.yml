@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install
+        run: python -m pip install -e ".[dev]"
+      - name: Lint
+        run: ruff check .
+      - name: Type check
+        run: basedpyright
+      - name: Tests
+        run: pytest
+      - name: Build
+        run: python -m build --sdist --wheel
+      - name: Release audit
+        run: python scripts/audit_release.py --dist dist
+      - name: Fresh install smoke
+        run: |
+          python -m venv /tmp/devmem-smoke
+          /tmp/devmem-smoke/bin/python -m pip install dist/*.whl
+          /tmp/devmem-smoke/bin/python -I -c "import devmem; print(devmem.__file__)"
+          /tmp/devmem-smoke/bin/devmem status
+          /tmp/devmem-smoke/bin/devmem preflight-mcp --quiet
+      - name: Optional extras smoke
+        run: |
+          python -m venv /tmp/devmem-openai-smoke
+          /tmp/devmem-openai-smoke/bin/python -m pip install ".[openai]"
+          /tmp/devmem-openai-smoke/bin/python -c "import openai; import devmem.infra.openai_embedder"
+          python -m venv /tmp/devmem-api-smoke
+          /tmp/devmem-api-smoke/bin/python -m pip install ".[api]"
+          /tmp/devmem-api-smoke/bin/python -c "import fastapi, uvicorn; import devmem.api_server"

@@ -1,0 +1,7 @@
+include README.md
+include LICENSE
+recursive-include docs *.md *.json
+recursive-include examples *.json *.sh
+recursive-include scripts *.py
+recursive-include src/devmem/hooks/templates *.sh
+recursive-include tests *.py

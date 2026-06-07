@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "devmem": {
+      "command": "devmem",
+      "args": ["mcp"],
+      "env": {
+        "DEVMEM_REPO_SLUG": "owner/project"
+      }
+    }
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "distribution_name": "devmem-mcp",
+  "import_package": "devmem",
+  "console_command": "devmem",
+  "required_commands": [
+    "mcp",
+    "status",
+    "report",
+    "search",
+    "diagnose",
+    "feedback",
+    "preflight-mcp",
+    "cleanup-mcp",
+    "embed-pending"
+  ],
+  "required_base_mcp_tools": [
+    "devmem_report",
+    "devmem_lookup",
+    "devmem_diagnose",
+    "devmem_feedback",
+    "devmem_search",
+    "devmem_status"
+  ],
+  "forbidden_patterns": [
+    { "fragments": ["coeffect", "_mesh"] },
+    { "fragments": ["coeffect", "_devmem"] },
+    { "fragments": ["/AI", "-agents"] },
+    { "fragments": ["packages/", "coeffect", "_devmem"] },
+    { "fragments": ["src/", "coeffect", "_devmem"] },
+    { "fragments": ["CO", "EFFECT_"] }
+  ],
+  "optional_features": {
+    "openai": "extra",
+    "api": "extra",
+    "code_search": "deferred",
+    "postgres": "deferred",
+    "skills": "deferred"
+  },
+  "base_optional_modules_must_not_import": [
+    "openai",
+    "psycopg",
+    "fastapi",
+    "uvicorn",
+    "anthropic",
+    "requests"
+  ],
+  "public_audit_paths": [
+    ".github",
+    ".gitignore",
+    "MANIFEST.in",
+    "src",
+    "tests",
+    "README.md",
+    "docs",
+    "examples",
+    "pyproject.toml",
+    "uv.lock"
+  ],
+  "artifact_clean": {
+    "inspect_wheel": true,
+    "inspect_sdist": true
+  }
+}

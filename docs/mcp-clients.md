@@ -1,0 +1,56 @@
+# MCP Clients
+
+## Codex
+
+```json
+{
+  "mcpServers": {
+    "devmem": {
+      "command": "devmem",
+      "args": ["mcp"],
+      "env": {
+        "DEVMEM_REPO_SLUG": "owner/project"
+      }
+    }
+  }
+}
+```
+
+## Claude Code
+
+```json
+{
+  "mcpServers": {
+    "devmem": {
+      "command": "devmem",
+      "args": ["mcp"],
+      "env": {
+        "DEVMEM_REPO_SLUG": "owner/project"
+      }
+    }
+  }
+}
+```
+
+## Preflight
+
+Run this before connecting an MCP client:
+
+```bash
+devmem preflight-mcp
+```
+
+The preflight command starts `python -m devmem mcp`, sends the MCP initialize
+and tool-list messages, and verifies the base tools:
+
+- `devmem_report`
+- `devmem_lookup`
+- `devmem_diagnose`
+- `devmem_feedback`
+- `devmem_search`
+- `devmem_status`
+
+## Hook Templates
+
+Portable templates are packaged under `devmem.hooks.templates`. They use the
+installed `devmem` command and exit quietly if it is unavailable.
