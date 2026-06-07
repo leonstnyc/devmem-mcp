@@ -26,6 +26,11 @@ dependencies = [
   "sqlite-vec>=0.1.9",
 ]
 
+[project.urls]
+Homepage = "https://github.com/leonstnyc/devmem-mcp"
+Repository = "https://github.com/leonstnyc/devmem-mcp"
+Issues = "https://github.com/leonstnyc/devmem-mcp/issues"
+
 [project.optional-dependencies]
 openai = ["openai>=1.0.0"]
 api = ["fastapi>=0.115.0", "uvicorn[standard]>=0.30.0"]

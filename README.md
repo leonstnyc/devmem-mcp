@@ -7,6 +7,8 @@ decisions, then retrieves them in later sessions.
 The base install stores data in local SQLite and uses deterministic local hash
 embeddings. It does not need API keys or remote services.
 
+Source: <https://github.com/leonstnyc/devmem-mcp>
+
 ## Install
 
 ```bash

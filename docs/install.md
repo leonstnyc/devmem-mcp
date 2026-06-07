@@ -1,5 +1,7 @@
 # Install
 
+Source repository: <https://github.com/leonstnyc/devmem-mcp>
+
 ## User Install
 
 ```bash
