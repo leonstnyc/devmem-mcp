@@ -1,0 +1,8 @@
+# Codex MCP server entry. Merge into ~/.codex/config.toml.
+
+[mcp_servers.devmem]
+command = "devmem"
+args = ["mcp"]
+
+[mcp_servers.devmem.env]
+DEVMEM_REPO_SLUG = "owner/project"

@@ -23,9 +23,12 @@ set, and `DEVMEM_FORCE_LOCAL_EMBEDDER` is not enabled.
 
 ## Delete Data
 
+The database runs in WAL mode, so note data can also live in the `-wal` and
+`-shm` sidecar files next to the database. Delete all three:
+
 ```bash
-rm ~/.devmem/devmem.db
+rm -f ~/.devmem/devmem.db ~/.devmem/devmem.db-wal ~/.devmem/devmem.db-shm
 ```
 
 You can also set `DEVMEM_SQLITE_PATH` to use a project-specific database and
-delete that file when needed.
+delete those files when needed.

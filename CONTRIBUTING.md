@@ -15,6 +15,7 @@ Run these before opening a pull request:
 ```bash
 pytest
 ruff check .
+ruff format --check .
 basedpyright
 python -m build --sdist --wheel --outdir .tmp/release-dist
 python scripts/audit_release.py --dist .tmp/release-dist

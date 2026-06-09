@@ -2,21 +2,28 @@
 
 ## Codex
 
-```json
-{
-  "mcpServers": {
-    "devmem": {
-      "command": "devmem",
-      "args": ["mcp"],
-      "env": {
-        "DEVMEM_REPO_SLUG": "owner/project"
-      }
-    }
-  }
-}
+Codex reads MCP servers from `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.devmem]
+command = "devmem"
+args = ["mcp"]
+
+[mcp_servers.devmem.env]
+DEVMEM_REPO_SLUG = "owner/project"
 ```
 
+See `examples/codex-config.toml` for a copyable snippet.
+
 ## Claude Code
+
+Register the server with the CLI:
+
+```bash
+claude mcp add-json devmem '{"command": "devmem", "args": ["mcp"], "env": {"DEVMEM_REPO_SLUG": "owner/project"}}'
+```
+
+Or add it to a project `.mcp.json`:
 
 ```json
 {

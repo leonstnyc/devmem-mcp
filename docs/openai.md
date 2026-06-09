@@ -28,3 +28,11 @@ export DEVMEM_FORCE_LOCAL_EMBEDDER=true
 
 OpenAI embeddings send note text and search text to OpenAI for embedding. The
 base package does not send telemetry or sync memory data remotely.
+
+## Switching Embedders
+
+Embeddings from the local hash embedder and OpenAI models have different
+dimensions. Notes embedded before a switch score zero in semantic search until
+they are re-embedded; keyword fallback search still finds them. To keep one
+consistent embedder, set `DEVMEM_FORCE_LOCAL_EMBEDDER=true` or keep
+`OPENAI_API_KEY` set in every environment that writes notes.
