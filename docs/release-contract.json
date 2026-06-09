@@ -13,6 +13,7 @@
     "preflight-mcp",
     "cleanup-mcp",
     "embed-pending",
+    "hooks",
     "api"
   ],
   "required_base_mcp_tools": [

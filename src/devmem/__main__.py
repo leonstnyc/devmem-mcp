@@ -476,6 +476,64 @@ def _run_embed_pending(_: argparse.Namespace) -> int:
     return 1 if failed else 0
 
 
+def _hooks_templates_dir() -> Path:
+    return Path(__file__).resolve().parent / "hooks" / "templates"
+
+
+def _claude_code_hook_block(start: Path, stop: Path) -> dict[str, Any]:
+    # Matches the Claude Code settings.json schema: SessionStart matcher is
+    # optional; SessionEnd requires one ("other" is the catch-all).
+    return {
+        "hooks": {
+            "SessionStart": [{"hooks": [{"type": "command", "command": str(start)}]}],
+            "SessionEnd": [
+                {
+                    "matcher": "other",
+                    "hooks": [{"type": "command", "command": str(stop)}],
+                }
+            ],
+        }
+    }
+
+
+def _run_hooks(args: argparse.Namespace) -> int:
+    templates_dir = _hooks_templates_dir()
+    if args.path:
+        print(str(templates_dir))
+        return 0
+
+    start = templates_dir / "session_start.sh"
+    stop = templates_dir / "session_stop.sh"
+    block = _claude_code_hook_block(start, stop)
+    if args.json:
+        print(json.dumps(block, indent=2))
+        return 0
+
+    lines = [
+        "DevMem session hooks",
+        "",
+        "Packaged templates:",
+        f"  {start}",
+        "    inject recent memory context at session start",
+        f"  {stop}",
+        "    replay pending embeddings and clean up stale MCP servers",
+        "",
+        "Claude Code — merge into ~/.claude/settings.json (or .claude/settings.json):",
+        "",
+        json.dumps(block, indent=2),
+        "",
+        "Tip: copy the scripts to a stable path so upgrades cannot move them,",
+        "then point the commands above at the copy:",
+        "  mkdir -p ~/.claude/hooks/devmem",
+        '  cp "$(devmem hooks --path)/"*.sh ~/.claude/hooks/devmem/',
+        "",
+        "Set DEVMEM_SESSION_QUERY to control what session_start.sh searches for.",
+        "Codex and other clients: see docs/agent-workflow.md.",
+    ]
+    print("\n".join(lines))
+    return 0
+
+
 def _run_api(args: argparse.Namespace) -> int:
     config = DevMemConfig()
     host = args.host or config.host
@@ -554,6 +612,16 @@ def build_parser() -> argparse.ArgumentParser:
 
     embed_pending = subparsers.add_parser("embed-pending", help="retry pending note embeddings")
     embed_pending.set_defaults(func=_run_embed_pending)
+
+    hooks = subparsers.add_parser("hooks", help="print session-hook paths and client wiring")
+    hooks_output = hooks.add_mutually_exclusive_group()
+    hooks_output.add_argument(
+        "--path", action="store_true", help="print only the templates directory"
+    )
+    hooks_output.add_argument(
+        "--json", action="store_true", help="print only the Claude Code settings.json hooks block"
+    )
+    hooks.set_defaults(func=_run_hooks)
 
     api = subparsers.add_parser("api", help="run the optional HTTP API server")
     api.add_argument("--host")

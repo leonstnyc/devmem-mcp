@@ -30,6 +30,7 @@ def test_help_lists_required_commands_only() -> None:
         "preflight-mcp",
         "cleanup-mcp",
         "embed-pending",
+        "hooks",
         "api",
     }
 
@@ -190,6 +191,29 @@ def test_preflight_env_file_merge_is_scoped_to_devmem_keys(monkeypatch, tmp_path
     # An untrusted checkout's .env must not rewrite interpreter resolution.
     assert child_env["PATH"] == "/usr/bin"
     assert child_env.get("PYTHONPATH") != "/tmp/evil-modules"
+
+
+def test_hooks_command_emits_valid_wiring(monkeypatch, capsys, tmp_path: Path) -> None:
+    # No store env on purpose: hooks must work without a database.
+    monkeypatch.setenv("DEVMEM_PRIMARY_STORE", "postgres")
+
+    assert main(["hooks", "--path"]) == 0
+    templates_dir = Path(capsys.readouterr().out.strip())
+    assert (templates_dir / "session_start.sh").is_file()
+    assert (templates_dir / "session_stop.sh").is_file()
+
+    assert main(["hooks", "--json"]) == 0
+    block = json.loads(capsys.readouterr().out)
+    session_start = block["hooks"]["SessionStart"][0]["hooks"][0]["command"]
+    session_end = block["hooks"]["SessionEnd"][0]
+    assert session_start.endswith("session_start.sh")
+    assert session_end["matcher"] == "other"
+    assert session_end["hooks"][0]["command"].endswith("session_stop.sh")
+
+    assert main(["hooks"]) == 0
+    guide = capsys.readouterr().out
+    assert "SessionStart" in guide
+    assert "DEVMEM_SESSION_QUERY" in guide
 
 
 def test_api_command_uses_optional_uvicorn_launcher(monkeypatch) -> None:
