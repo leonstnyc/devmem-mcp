@@ -2,7 +2,8 @@ include README.md
 include CONTRIBUTING.md
 include LICENSE
 recursive-include docs *.md *.json
-recursive-include examples *.json *.sh
+recursive-include examples *.json *.sh *.toml
 recursive-include scripts *.py
 recursive-include src/devmem/hooks/templates *.sh
+include src/devmem/py.typed
 recursive-include tests *.py

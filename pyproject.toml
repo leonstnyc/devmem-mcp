@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=69", "wheel"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "devmem-mcp"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Local-first MCP developer memory for coding agents"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -21,9 +21,7 @@ classifiers = [
 ]
 dependencies = [
   "httpx>=0.27.0",
-  "pydantic>=2.0.0",
   "python-dotenv>=1.0.0",
-  "sqlite-vec>=0.1.9",
 ]
 
 [project.urls]
@@ -49,12 +47,15 @@ devmem = "devmem.__main__:main"
 package-dir = { "" = "src" }
 include-package-data = true
 
+[tool.setuptools.dynamic]
+version = { attr = "devmem.__version__" }
+
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["devmem*"]
 
 [tool.setuptools.package-data]
-devmem = ["hooks/templates/*.sh"]
+devmem = ["hooks/templates/*.sh", "py.typed"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src", "."]
