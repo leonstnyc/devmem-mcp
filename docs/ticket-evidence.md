@@ -58,7 +58,9 @@ the list and assert no workspace-bridge tools are registered.
 ## DMST-08
 
 Hook templates use the installed `devmem` command, contain no private paths, and
-quietly exit when DevMem is absent.
+quietly exit when DevMem is absent. The `devmem hooks` command prints their
+installed paths and a Claude Code settings block; `docs/agent-workflow.md`
+documents full client wiring and the agent policy.
 
 ## DMST-09
 
@@ -79,8 +81,10 @@ do not advertise a usable Postgres extra.
 ## DMST-12
 
 README, install docs, MCP client docs, OpenAI docs, API docs, configuration
-docs, privacy docs, development docs, and examples match the implemented CLI and
-MCP surface.
+docs, privacy docs, development docs, the agent-workflow guide, and examples
+match the implemented CLI and MCP surface. Configuration docs state the
+tenant-and-path memory scope model, in which `repo_slug` is metadata rather than
+a query filter.
 
 ## DMST-13
 

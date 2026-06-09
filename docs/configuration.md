@@ -31,5 +31,35 @@ All settings are environment variables. Values are read at runtime.
 | `DEVMEM_SYMBOL_INDEXER_BIN` | unset | Reserved for future code indexing. |
 | `DEVMEM_SYMBOL_INDEXER_TIMEOUT_SECONDS` | `5` | Reserved for future code indexing. |
 
+## Hook Variables
+
+These are read by the packaged session-hook templates, not by the Python code.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `DEVMEM_SESSION_QUERY` | `recent project context` | Search query `session_start.sh` runs to inject context at session start. |
+
 `devmem status` prints the selected store, embedder, database path, note count,
 and repository slug. It never prints API keys.
+
+## Memory Scope
+
+Retrieval is filtered by **two** things only: the `tenant_id` and the database
+file (`DEVMEM_SQLITE_PATH`). `DEVMEM_REPO_SLUG` is recorded in each note's
+metadata and shown by `devmem status`, but it is **not** a query filter. It
+labels where a note came from; it does not partition search, lookup, diagnose,
+or feedback.
+
+So with the defaults (`tenant_id=default`, one shared `~/.devmem/devmem.db`),
+**every repository shares one memory pool.** A gotcha recorded while working in
+project A is retrievable while working in project B. That is intentional for
+cross-project learning, but choose your isolation deliberately:
+
+| Goal | Configuration |
+| --- | --- |
+| Shared pool across all repos (default) | Leave `DEVMEM_TENANT_ID` and `DEVMEM_SQLITE_PATH` unset. |
+| Logical isolation, one database | Set a distinct `DEVMEM_TENANT_ID` per project (e.g. the repo slug). |
+| Physical isolation, separate files | Set `DEVMEM_SQLITE_PATH=.devmem/devmem.db` per project. |
+
+Set the variable in the MCP client `env` block (see `docs/mcp-clients.md`) so the
+scope is applied to every tool call in that project.

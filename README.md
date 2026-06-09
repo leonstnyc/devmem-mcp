@@ -63,7 +63,15 @@ devmem diagnose "OperationalError: no such table"
 devmem feedback devmem:abc123 helpful
 devmem preflight-mcp --quiet
 devmem embed-pending
+devmem hooks
 ```
+
+## Agentic Workflow
+
+To make memory carry across sessions automatically — session hooks plus an
+agent policy, not just the MCP tools — follow `docs/agent-workflow.md`. Note
+that all repositories share one memory pool by default; see the Memory Scope
+section of `docs/configuration.md` to choose per-project isolation.
 
 ## Optional Extras
 

@@ -60,4 +60,14 @@ and tool-list messages, and verifies the base tools:
 ## Hook Templates
 
 Portable templates are packaged under `devmem.hooks.templates`. They use the
-installed `devmem` command and exit quietly if it is unavailable.
+installed `devmem` command and exit quietly if it is unavailable. Run
+`devmem hooks` to print their installed paths and a ready-to-paste Claude Code
+settings block. For full session-hook wiring (Claude Code and Codex), the
+`DEVMEM_SESSION_QUERY` control, and an agent policy snippet, see
+`docs/agent-workflow.md`.
+
+## Memory Scope
+
+Memories are scoped by `tenant_id` and database path, not by repository — all
+repos share one pool by default. See the Memory Scope section of
+`docs/configuration.md` to choose per-project isolation.
