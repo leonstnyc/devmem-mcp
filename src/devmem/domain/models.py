@@ -4,6 +4,12 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
 
+# Keeps embedding input safely under provider token limits (OpenAI
+# text-embedding-3-* rejects inputs over 8191 tokens; 8000 chars is roughly
+# 2000 tokens). Oversized notes would otherwise become permanently
+# un-embeddable pending rows.
+_MAX_EMBEDDING_INPUT_CHARS = 8000
+
 
 class DevMemNoteKind(StrEnum):
     CODEBASE_GOTCHA = "codebase_gotcha"
@@ -32,7 +38,7 @@ class DevMemNote:
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def embedding_text(self) -> str:
-        return f"{self.summary_text}\n\n{self.text}".strip()
+        return embedding_input(self.summary_text, self.text)
 
     def public_metadata(self) -> dict[str, Any]:
         metadata = dict(self.metadata)
@@ -51,6 +57,10 @@ class DevMemNote:
         if self.error_type:
             metadata["error_type"] = self.error_type
         return metadata
+
+
+def embedding_input(summary_text: str, text: str) -> str:
+    return f"{summary_text}\n\n{text}".strip()[:_MAX_EMBEDDING_INPUT_CHARS]
 
 
 def normalize_tenant_id(value: str | None) -> str:

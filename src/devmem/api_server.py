@@ -29,8 +29,10 @@ def create_app() -> Any:
     def require_api_key(authorization: str | None = Header(default=None)) -> None:
         if not config.api_key:
             return
-        expected = f"Bearer {config.api_key}"
-        if authorization and secrets.compare_digest(authorization, expected):
+        expected = f"Bearer {config.api_key}".encode()
+        # Compare bytes: compare_digest raises TypeError on non-ASCII str input,
+        # which would turn a bad header into a 500 instead of a 401.
+        if authorization and secrets.compare_digest(authorization.encode("utf-8"), expected):
             return
         raise HTTPException(status_code=401, detail="Unauthorized")
 

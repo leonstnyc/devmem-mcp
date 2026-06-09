@@ -56,6 +56,5 @@ def test_release_artifact_audit_rejects_stale_distribution_names(tmp_path: Path)
     (dist / "devmem-0.1.0-py3-none-any.whl").write_bytes(b"stale artifact")
 
     assert audit_artifacts(root, dist, contract) == [
-        "devmem-0.1.0-py3-none-any.whl is not a 'devmem-mcp' artifact; "
-        "remove stale build outputs"
+        "devmem-0.1.0-py3-none-any.whl is not a 'devmem-mcp' artifact; remove stale build outputs"
     ]

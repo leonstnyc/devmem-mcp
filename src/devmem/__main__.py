@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import argparse
-import asyncio
 import importlib
 import json
 import os
+import re
 import select
 import shlex
 import signal
@@ -18,10 +18,15 @@ from math import isfinite
 from pathlib import Path
 from typing import IO, Any
 
-from devmem.app.services import DevMemFeedbackRecorder, DevMemReporter, DevMemRetriever
+from devmem.app.services import (
+    DevMemFeedbackRecorder,
+    DevMemReporter,
+    DevMemRetriever,
+    status_lines,
+)
 from devmem.domain.config import DevMemConfig
-from devmem.domain.errors import OptionalFeatureError
-from devmem.domain.models import DevMemNoteKind, FeedbackRating
+from devmem.domain.errors import DevMemError, OptionalFeatureError
+from devmem.domain.models import DevMemNoteKind, FeedbackRating, embedding_input
 from devmem.infra.runtime import build_runtime
 
 _STREAM_READ_BUFFERS: weakref.WeakKeyDictionary[object, bytes] = weakref.WeakKeyDictionary()
@@ -73,19 +78,22 @@ def _runtime_services() -> tuple[
 def _run_mcp(_: argparse.Namespace) -> int:
     from devmem.mcp_server import main as mcp_main
 
-    asyncio.run(mcp_main())
+    try:
+        mcp_main()
+    except KeyboardInterrupt:
+        return 130
     return 0
 
 
 def _run_status(_: argparse.Namespace) -> int:
     config = DevMemConfig()
     runtime = build_runtime(config)
-    lines = (
-        f"store: {runtime.store_type}",
-        f"embedder: {runtime.embedder_type}",
-        f"path: {runtime.store.path}",
-        f"notes: {runtime.store.count_notes()}",
-        f"repo_slug: {runtime.config.repo_slug}",
+    lines = status_lines(
+        store_type=runtime.store_type,
+        embedder_type=runtime.embedder_type,
+        path=runtime.store.path,
+        note_count=runtime.store.count_notes(),
+        repo_slug=runtime.config.repo_slug,
     )
     print("\n".join(lines))
     return 0
@@ -172,6 +180,9 @@ def _read_line_timeout(stream: IO[bytes], timeout: float) -> str | None:
         buf += chunk
 
 
+_ENV_FILE_KEY_PATTERN = re.compile(r"^(?:DEVMEM_[A-Z0-9_]+|OPENAI_API_KEY)$")
+
+
 def _load_env_file(env_file: Path) -> dict[str, str]:
     child_env = os.environ.copy()
     if not env_file.is_file():
@@ -181,7 +192,10 @@ def _load_env_file(env_file: Path) -> dict[str, str]:
     except ImportError:
         return child_env
     for key, value in dotenv_values(str(env_file)).items():
-        if key and value is not None:
+        # Only DevMem-scoped keys may be overridden by a repo-local .env;
+        # merging arbitrary keys would let an untrusted checkout rewrite PATH
+        # or PYTHONPATH for the spawned MCP server.
+        if key and value is not None and _ENV_FILE_KEY_PATTERN.match(key):
             child_env[key] = value
     return child_env
 
@@ -221,7 +235,10 @@ def _release_contract_path() -> Path:
 def _expected_tools() -> set[str]:
     contract_path = _release_contract_path()
     if contract_path.exists():
-        payload = json.loads(contract_path.read_text())
+        try:
+            payload = json.loads(contract_path.read_text())
+        except (OSError, json.JSONDecodeError):
+            payload = {}
         tools = payload.get("required_base_mcp_tools", [])
         if isinstance(tools, list) and all(isinstance(tool, str) for tool in tools):
             return set(tools)
@@ -281,7 +298,7 @@ def _run_preflight_mcp(args: argparse.Namespace) -> int:
             else:
                 proc.stdin.write(init_msg.encode())
                 proc.stdin.flush()
-                init_line = _read_line_timeout(proc.stdout, timeout=min(timeout * 0.7, 3.5))
+                init_line = _read_line_timeout(proc.stdout, timeout=timeout * 0.7)
                 if init_line is None:
                     failure_reason = "Timeout waiting for initialize response"
                 else:
@@ -297,7 +314,7 @@ def _run_preflight_mcp(args: argparse.Namespace) -> int:
                         proc.stdin.close()
                         tools_line = _read_line_timeout(
                             proc.stdout,
-                            timeout=min(timeout * 0.3, 2.0),
+                            timeout=timeout * 0.3,
                         )
                         if tools_line is None:
                             failure_reason = "Timeout waiting for tools/list response"
@@ -340,7 +357,9 @@ def _run_preflight_mcp(args: argparse.Namespace) -> int:
     if stderr_text.strip():
         print(f"  server stderr: {stderr_text.strip()[:300]}", file=sys.stderr)
     if not no_cleanup:
-        cleanup_args = argparse.Namespace(max_age=4.0, all=True, dry_run=False)
+        # Age-gated only: --all here would also kill healthy MCP servers that
+        # other live client sessions are still using.
+        cleanup_args = argparse.Namespace(max_age=4.0, all=False, dry_run=False)
         _run_cleanup_mcp(cleanup_args)
     return 1
 
@@ -353,6 +372,7 @@ def _run_cleanup_mcp(args: argparse.Namespace) -> int:
             check=False,
             text=True,
             timeout=_CLEANUP_PS_TIMEOUT_SECONDS,
+            env={**os.environ, "LC_ALL": "C"},
         )
         result.check_returncode()
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
@@ -388,11 +408,7 @@ def _run_cleanup_mcp(args: argparse.Namespace) -> int:
         return 0
 
     killed = 0
-    eligible = {
-        pid
-        for pid, elapsed in candidates
-        if args.all or elapsed > args.max_age * 3600
-    }
+    eligible = {pid for pid, elapsed in candidates if args.all or elapsed > args.max_age * 3600}
     for pid in sorted(eligible):
         if args.dry_run:
             print(f"would kill PID {pid}")
@@ -413,18 +429,15 @@ def _is_devmem_mcp_command(command: str) -> bool:
         parts = shlex.split(command)
     except ValueError:
         parts = command.split()
-    for index, part in enumerate(parts):
-        name = Path(part).name
-        if name == "devmem" and index + 1 < len(parts) and parts[index + 1] == "mcp":
-            return True
-        if (
-            name.startswith("python")
-            and index + 3 < len(parts)
-            and parts[index + 1] == "-m"
-            and parts[index + 2] == "devmem"
-            and parts[index + 3] == "mcp"
-        ):
-            return True
+    if not parts:
+        return False
+    # Anchor on argv[0]: scanning the whole argv would also match unrelated
+    # commands such as `grep devmem mcp` and SIGTERM the wrong process.
+    name = Path(parts[0]).name
+    if name == "devmem":
+        return len(parts) >= 2 and parts[1] == "mcp"
+    if name.startswith("python"):
+        return parts[1:4] == ["-m", "devmem", "mcp"]
     return False
 
 
@@ -432,6 +445,7 @@ def _run_embed_pending(_: argparse.Namespace) -> int:
     runtime = build_runtime(DevMemConfig())
     pending = runtime.store.get_pending_notes(limit=100)
     embedded = 0
+    failed = 0
     for note in pending:
         note_id = note.get("note_id")
         summary_text = note.get("summary_text")
@@ -442,14 +456,24 @@ def _run_embed_pending(_: argparse.Namespace) -> int:
             or not isinstance(text, str)
         ):
             continue
-        embedding_text = f"{summary_text}\n\n{text}".strip()
-        runtime.store.complete_pending_note(
-            note_id=note_id,
-            embedding=runtime.embedder.embed(embedding_text),
-        )
+        try:
+            embedding = runtime.embedder.embed(embedding_input(summary_text, text))
+        except Exception as exc:
+            # Pending notes exist because an earlier embed failed; one bad note
+            # or provider hiccup must not abort the rest of the replay.
+            failed += 1
+            print(
+                f"embed failed for {note_id}: {type(exc).__name__}: {str(exc)[:200]}",
+                file=sys.stderr,
+            )
+            continue
+        runtime.store.complete_pending_note(note_id=note_id, embedding=embedding)
         embedded += 1
-    print(f"Embedded {embedded}/{len(pending)} pending notes.")
-    return 0
+    summary = f"Embedded {embedded}/{len(pending)} pending notes."
+    if failed:
+        summary += f" {failed} failed."
+    print(summary)
+    return 1 if failed else 0
 
 
 def _run_api(args: argparse.Namespace) -> int:
@@ -543,7 +567,13 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     func: Callable[[argparse.Namespace], int] = args.func
-    return func(args)
+    try:
+        return func(args)
+    except DevMemError as exc:
+        # Expected configuration/feature errors get a clean message; unexpected
+        # exceptions still traceback loudly because those are bugs.
+        print(f"devmem: {exc}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

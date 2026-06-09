@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from devmem import __version__
 from devmem.domain.config import DevMemConfig
 from devmem.mcp_server import (
     _BASE_TOOLS,
@@ -9,6 +10,10 @@ from devmem.mcp_server import (
     DevMemJSONRPCServer,
     LazyDevMemMCPContext,
 )
+
+
+def _server() -> DevMemJSONRPCServer:
+    return DevMemJSONRPCServer(ctx=LazyDevMemMCPContext(DevMemConfig()))
 
 
 @pytest.mark.asyncio
@@ -25,6 +30,52 @@ async def test_base_mcp_tool_surface_exact() -> None:
         "devmem_status",
     }
     assert not any(name.startswith("knowledge_") for name in names)
+
+
+@pytest.mark.asyncio
+async def test_initialize_reports_package_version_and_instructions(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("DEVMEM_SQLITE_PATH", str(tmp_path / "devmem.db"))
+    monkeypatch.setenv("DEVMEM_REPO_SLUG", "owner/project")
+
+    response = await _server().handle_request(
+        {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}
+    )
+
+    assert response is not None
+    assert response["result"]["serverInfo"]["version"] == __version__
+    assert "devmem_report" in response["result"]["instructions"]
+
+
+@pytest.mark.asyncio
+async def test_ping_returns_empty_result(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("DEVMEM_SQLITE_PATH", str(tmp_path / "devmem.db"))
+
+    response = await _server().handle_request({"jsonrpc": "2.0", "id": 7, "method": "ping"})
+
+    assert response == {"jsonrpc": "2.0", "id": 7, "result": {}}
+
+
+@pytest.mark.asyncio
+async def test_notifications_and_id_less_requests_get_no_response(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("DEVMEM_SQLITE_PATH", str(tmp_path / "devmem.db"))
+    server = _server()
+
+    cancelled = await server.handle_request(
+        {"jsonrpc": "2.0", "method": "notifications/cancelled", "params": {"requestId": 3}}
+    )
+    initialized = await server.handle_request(
+        {"jsonrpc": "2.0", "method": "notifications/initialized"}
+    )
+    unknown_without_id = await server.handle_request({"jsonrpc": "2.0", "method": "bogus/method"})
+    unknown_with_id = await server.handle_request(
+        {"jsonrpc": "2.0", "id": 9, "method": "bogus/method"}
+    )
+
+    assert cancelled is None
+    assert initialized is None
+    assert unknown_without_id is None
+    assert unknown_with_id is not None
+    assert unknown_with_id["error"]["code"] == -32601
 
 
 @pytest.mark.asyncio

@@ -10,7 +10,13 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from devmem.app.services import DevMemFeedbackRecorder, DevMemReporter, DevMemRetriever
+from devmem import __version__
+from devmem.app.services import (
+    DevMemFeedbackRecorder,
+    DevMemReporter,
+    DevMemRetriever,
+    status_lines,
+)
 from devmem.domain.config import DevMemConfig
 from devmem.domain.models import DevMemNoteKind, FeedbackRating, normalize_tenant_id
 from devmem.domain.ports import DevMemStorePort, TextEmbedderPort
@@ -24,6 +30,14 @@ BASE_TOOL_NAMES = (
     "devmem_feedback",
     "devmem_search",
     "devmem_status",
+)
+
+_SERVER_INSTRUCTIONS = (
+    "DevMem stores developer memories across sessions. Call devmem_lookup before "
+    "editing unfamiliar files, devmem_diagnose before retrying a failed command, "
+    "devmem_search before exploring a module, and devmem_report after solving a "
+    "non-obvious problem (kinds: error_solution, codebase_gotcha, "
+    "architecture_insight). Rate retrieved memories with devmem_feedback."
 )
 
 
@@ -63,7 +77,10 @@ class DevMemMCPContext:
 
 
 class LazyDevMemMCPContext:
-    def __init__(self, config: DevMemConfig) -> None:
+    def __init__(self, config: DevMemConfig | None = None) -> None:
+        # Config construction shells out to git for repo-slug detection (up to
+        # 1.5s); defer it with the rest of runtime init so the initialize
+        # handshake stays inside client startup deadlines.
         self._config = config
         self._inner: DevMemMCPContext | None = None
         self._init_error: str | None = None
@@ -78,7 +95,7 @@ class LazyDevMemMCPContext:
             try:
                 from devmem.infra.runtime import build_runtime
 
-                runtime = build_runtime(self._config)
+                runtime = build_runtime(self._config or DevMemConfig())
                 reporter = DevMemReporter(
                     store=runtime.store,
                     embedder=runtime.embedder,
@@ -360,12 +377,12 @@ async def _handle_status(
     resolved = await _resolve(ctx)
     note_count = await asyncio.to_thread(resolved.store.count_notes)
     text = "\n".join(
-        (
-            f"store: {resolved.store_type}",
-            f"embedder: {resolved.embedder_type}",
-            f"path: {resolved.store.path}",
-            f"notes: {note_count}",
-            f"repo_slug: {resolved.config.repo_slug}",
+        status_lines(
+            store_type=resolved.store_type,
+            embedder_type=resolved.embedder_type,
+            path=resolved.store.path,
+            note_count=note_count,
+            repo_slug=resolved.config.repo_slug,
         )
     )
     return [TextContent(type="text", text=text)]
@@ -388,8 +405,14 @@ class DevMemJSONRPCServer:
     async def handle_request(self, payload: dict[str, Any]) -> dict[str, Any] | None:
         method = payload.get("method")
         request_id = payload.get("id")
-        if method == "notifications/initialized":
+        if isinstance(method, str) and method.startswith("notifications/"):
             return None
+        if "id" not in payload:
+            # JSON-RPC 2.0: a request without an id is a notification and MUST
+            # NOT receive a response, even when the method is unknown.
+            return None
+        if method == "ping":
+            return {"jsonrpc": "2.0", "id": request_id, "result": {}}
         if method == "initialize":
             return {
                 "jsonrpc": "2.0",
@@ -397,7 +420,8 @@ class DevMemJSONRPCServer:
                 "result": {
                     "protocolVersion": "2024-11-05",
                     "capabilities": {"tools": {}},
-                    "serverInfo": {"name": "devmem", "version": "0.1.0"},
+                    "serverInfo": {"name": "devmem", "version": __version__},
+                    "instructions": _SERVER_INSTRUCTIONS,
                 },
             }
         if method == "tools/list":
@@ -496,6 +520,6 @@ def _serve_stdio(server: DevMemJSONRPCServer) -> None:
         loop.close()
 
 
-async def main() -> None:
-    server = create_mcp_server(LazyDevMemMCPContext(DevMemConfig()))
-    await asyncio.to_thread(_serve_stdio, server)
+def main() -> None:
+    server = create_mcp_server(LazyDevMemMCPContext())
+    _serve_stdio(server)

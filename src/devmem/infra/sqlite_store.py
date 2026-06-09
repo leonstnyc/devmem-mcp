@@ -15,6 +15,9 @@ from typing import Any
 from devmem.domain.models import FeedbackRating
 
 _SCHEMA_VERSION = 1
+_BUSY_TIMEOUT_MS = 5000
+_NO_FEEDBACK_SCORE = 0.5
+_FEEDBACK_RANK_WEIGHT = 0.05
 _RATING_SCORES: dict[FeedbackRating, float] = {
     FeedbackRating.HELPFUL: 1.0,
     FeedbackRating.OUTDATED: 0.1,
@@ -99,6 +102,10 @@ class SqliteDevMemStore:
         db_path.parent.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(str(db_path))
         conn.row_factory = sqlite3.Row
+        # Concurrent sessions (MCP server, hooks, CLI) share one database file;
+        # without a busy timeout a writer holding the lock surfaces as an
+        # immediate "database is locked" error instead of a short wait.
+        conn.execute(f"PRAGMA busy_timeout = {_BUSY_TIMEOUT_MS}")
         self._ensure_schema(conn)
         return conn
 
@@ -289,6 +296,7 @@ class SqliteDevMemStore:
         limit: int = 5,
     ) -> list[dict[str, Any]]:
         rows = self._candidate_rows(tenant_id=tenant_id, kinds=kinds, complete_only=True)
+        feedback_scores = self._feedback_scores(tenant_id=tenant_id)
         scored = [
             self._row_to_result(
                 row,
@@ -299,7 +307,8 @@ class SqliteDevMemStore:
         scored.sort(
             key=lambda item: (
                 float(item.get("similarity", 0.0))
-                + self.feedback_score(tenant_id=tenant_id, note_id=str(item["note_id"])) * 0.05,
+                + feedback_scores.get(str(item["note_id"]), _NO_FEEDBACK_SCORE)
+                * _FEEDBACK_RANK_WEIGHT,
                 str(item.get("created_at", "")),
             ),
             reverse=True,
@@ -389,8 +398,16 @@ class SqliteDevMemStore:
                 (tenant_id, note_id),
             ).fetchone()
         if row is None:
-            return 0.5
+            return _NO_FEEDBACK_SCORE
         return float(row["score"])
+
+    def _feedback_scores(self, *, tenant_id: str) -> dict[str, float]:
+        with self._connection() as conn:
+            rows = conn.execute(
+                "SELECT note_id, score FROM devmem_feedback WHERE tenant_id = ?",
+                (tenant_id,),
+            ).fetchall()
+        return {str(row["note_id"]): float(row["score"]) for row in rows}
 
     def count_notes(self) -> int:
         with self._connection() as conn:

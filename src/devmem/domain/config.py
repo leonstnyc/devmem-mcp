@@ -7,6 +7,8 @@ from dataclasses import dataclass, field
 from math import isfinite
 from pathlib import Path
 
+from devmem.domain.models import normalize_tenant_id
+
 _GIT_REMOTE_TIMEOUT_SECONDS = 1.5
 _DEFAULT_SQLITE_PATH = "~/.devmem/devmem.db"
 _DEFAULT_OPENAI_EMBEDDING_MODEL = "text-embedding-3-small"
@@ -146,6 +148,4 @@ class DevMemConfig:
     )
 
     def normalized_tenant_id(self, override: str | None = None) -> str:
-        value = override if override is not None else self.tenant_id
-        normalized = value.strip()
-        return normalized or "default"
+        return normalize_tenant_id(override if override is not None else self.tenant_id)
