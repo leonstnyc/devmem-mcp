@@ -10,6 +10,7 @@ from devmem.domain.errors import OptionalFeatureError
 class OpenAIEmbedder:
     api_key: str
     model: str
+    timeout_seconds: float
     _client: Any = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -20,7 +21,11 @@ class OpenAIEmbedder:
                 "OpenAI embeddings require the 'openai' extra. Install with: "
                 'pip install "devmem-mcp[openai] @ git+https://github.com/leonstnyc/devmem-mcp.git"'
             ) from exc
-        object.__setattr__(self, "_client", OpenAI(api_key=self.api_key))
+        object.__setattr__(
+            self,
+            "_client",
+            OpenAI(api_key=self.api_key, timeout=self.timeout_seconds),
+        )
 
     def embed(self, text: str) -> list[float]:
         response = self._client.embeddings.create(model=self.model, input=text)

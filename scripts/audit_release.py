@@ -113,6 +113,13 @@ def _required_strings(contract: dict[str, object], key: str) -> set[str]:
     return set(values)
 
 
+def _expected_artifact_prefix(contract: dict[str, object]) -> tuple[str, str] | None:
+    distribution = contract.get("distribution_name")
+    if not isinstance(distribution, str) or not distribution:
+        return None
+    return distribution, distribution.replace("-", "_")
+
+
 def audit_runtime_surface(root: Path, contract: dict[str, object]) -> list[str]:
     failures: list[str] = []
     src_path = str(root / "src")
@@ -168,8 +175,15 @@ def audit_artifacts(root: Path, dist: Path, contract: dict[str, object]) -> list
     if not dist.exists():
         return failures
     patterns = _forbidden_patterns(contract)
+    artifact_prefix = _expected_artifact_prefix(contract)
     for artifact in dist.iterdir():
         if artifact.suffix == ".whl":
+            if artifact_prefix and not artifact.name.startswith(f"{artifact_prefix[1]}-"):
+                failures.append(
+                    f"{artifact.name} is not a {artifact_prefix[0]!r} artifact; "
+                    "remove stale build outputs"
+                )
+                continue
             with zipfile.ZipFile(artifact) as wheel:
                 for member in wheel.namelist():
                     data = wheel.read(member)
@@ -177,6 +191,12 @@ def audit_artifacts(root: Path, dist: Path, contract: dict[str, object]) -> list
                         if pattern.encode() in data:
                             failures.append(f"{artifact.name}:{member} contains {pattern!r}")
         elif artifact.suffixes[-2:] == [".tar", ".gz"]:
+            if artifact_prefix and not artifact.name.startswith(f"{artifact_prefix[1]}-"):
+                failures.append(
+                    f"{artifact.name} is not a {artifact_prefix[0]!r} artifact; "
+                    "remove stale build outputs"
+                )
+                continue
             with tarfile.open(artifact) as sdist:
                 for member in sdist.getmembers():
                     if not member.isfile():

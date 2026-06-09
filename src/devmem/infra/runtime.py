@@ -22,7 +22,14 @@ def _build_embedder(config: DevMemConfig) -> tuple[TextEmbedderPort, str]:
     if config.openai_api_key and not config.force_local_embedder:
         from devmem.infra.openai_embedder import OpenAIEmbedder
 
-        return OpenAIEmbedder(api_key=config.openai_api_key, model=config.embedding_model), "openai"
+        return (
+            OpenAIEmbedder(
+                api_key=config.openai_api_key,
+                model=config.embedding_model,
+                timeout_seconds=config.openai_timeout_seconds,
+            ),
+            "openai",
+        )
     return LocalHashEmbedder(dimension=max(32, config.embedding_dim)), "local-hash"
 
 

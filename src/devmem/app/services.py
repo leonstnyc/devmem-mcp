@@ -43,6 +43,13 @@ def _coerce_kinds(kinds: list[str] | tuple[str, ...] | None) -> tuple[str, ...]:
     return tuple(kind for kind in kinds if kind in allowed)
 
 
+def _required_text(value: str, field_name: str) -> str:
+    stripped = value.strip()
+    if not stripped:
+        raise ValueError(f"{field_name} is required")
+    return stripped
+
+
 def _render_memories(memories: list[dict[str, Any]]) -> str:
     if not memories:
         return "No matching memories found."
@@ -85,8 +92,8 @@ class DevMemReporter:
             note_id=memory_id,
             tenant_id=normalize_tenant_id(tenant_id),
             note_kind=kind,
-            summary_text=summary_text.strip(),
-            text=text.strip(),
+            summary_text=_required_text(summary_text, "summary_text"),
+            text=_required_text(text, "text"),
             file_paths=tuple(path.strip() for path in file_paths if path.strip()),
             tags=tags,
             module=module.strip() if module else None,

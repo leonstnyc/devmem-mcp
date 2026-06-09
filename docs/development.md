@@ -14,9 +14,13 @@ pip install -e ".[dev]"
 pytest
 ruff check .
 basedpyright
-python -m build --sdist --wheel
-python scripts/audit_release.py --dist dist
+python -m build --sdist --wheel --outdir .tmp/release-dist
+python scripts/audit_release.py --dist .tmp/release-dist
 ```
+
+Use a fresh output directory, or clear the old one, before rebuilding release
+artifacts. The release audit fails on stale artifacts from other distribution
+names.
 
 ## Fresh Install Smoke
 

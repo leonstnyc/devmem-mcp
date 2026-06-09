@@ -115,6 +115,60 @@ def _tenant(arguments: dict[str, Any], config: DevMemConfig) -> str:
     return normalize_tenant_id(os.environ.get("DEVMEM_TENANT_ID") or config.tenant_id)
 
 
+def _required_string(arguments: dict[str, Any], name: str) -> str:
+    value = arguments.get(name)
+    if not isinstance(value, str):
+        raise ValueError(f"{name} must be a non-empty string")
+    stripped = value.strip()
+    if not stripped:
+        raise ValueError(f"{name} must be a non-empty string")
+    return stripped
+
+
+def _optional_string(arguments: dict[str, Any], name: str) -> str | None:
+    value = arguments.get(name)
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError(f"{name} must be a string")
+    stripped = value.strip()
+    return stripped or None
+
+
+def _string_tuple(
+    arguments: dict[str, Any],
+    name: str,
+    *,
+    required: bool = False,
+) -> tuple[str, ...]:
+    value = arguments.get(name)
+    if value is None:
+        if required:
+            raise ValueError(f"{name} must contain at least one string")
+        return ()
+    if not isinstance(value, list):
+        raise ValueError(f"{name} must be an array of strings")
+    strings: list[str] = []
+    for index, item in enumerate(value):
+        if not isinstance(item, str):
+            raise ValueError(f"{name}[{index}] must be a string")
+        stripped = item.strip()
+        if stripped:
+            strings.append(stripped)
+    if required and not strings:
+        raise ValueError(f"{name} must contain at least one string")
+    return tuple(strings)
+
+
+def _limit(arguments: dict[str, Any]) -> int:
+    value = arguments.get("limit", 5)
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError("limit must be an integer")
+    if value < 1:
+        raise ValueError("limit must be an integer >= 1")
+    return value
+
+
 def _tool(
     *,
     name: str,
@@ -207,64 +261,48 @@ _BASE_TOOLS = (
 
 async def _resolve(
     ctx: LazyDevMemMCPContext | DevMemMCPContext,
-) -> tuple[DevMemMCPContext | None, Sequence[TextContent] | None]:
+) -> DevMemMCPContext:
     if isinstance(ctx, DevMemMCPContext):
-        return ctx, None
+        return ctx
     try:
-        return await asyncio.to_thread(ctx.get), None
+        return await asyncio.to_thread(ctx.get)
     except Exception as exc:
-        return None, [
-            TextContent(
-                type="text",
-                text=f"DevMem unavailable: {type(exc).__name__}: {str(exc)[:200]}",
-            )
-        ]
+        detail = ctx.last_error or f"{type(exc).__name__}: {str(exc)[:200]}"
+        raise RuntimeError(f"DevMem unavailable: {detail}") from exc
 
 
 async def _handle_report(
     ctx: LazyDevMemMCPContext | DevMemMCPContext,
     arguments: dict[str, Any],
 ) -> Sequence[TextContent]:
-    resolved, error = await _resolve(ctx)
-    if resolved is None:
-        return error or []
-    try:
-        result = await asyncio.to_thread(
-            resolved.reporter.report,
-            kind=DevMemNoteKind(str(arguments["kind"])),
-            text=str(arguments["text"]),
-            summary_text=str(arguments["summary_text"]),
-            tenant_id=_tenant(arguments, resolved.config),
-            file_paths=tuple(str(path) for path in arguments.get("file_paths", []) or []),
-            module=arguments.get("module"),
-            error_pattern=arguments.get("error_pattern"),
-            error_type=arguments.get("error_type"),
-            tags=tuple(str(tag) for tag in arguments.get("tags", []) or []),
-        )
-        suffix = f" ({result.warning})" if result.warning else ""
-        return [TextContent(type="text", text=f"Recorded {result.memory_id}{suffix}")]
-    except Exception as exc:
-        return [
-            TextContent(
-                type="text",
-                text=f"Error recording memory: {type(exc).__name__}: {str(exc)[:200]}",
-            )
-        ]
+    resolved = await _resolve(ctx)
+    result = await asyncio.to_thread(
+        resolved.reporter.report,
+        kind=DevMemNoteKind(_required_string(arguments, "kind")),
+        text=_required_string(arguments, "text"),
+        summary_text=_required_string(arguments, "summary_text"),
+        tenant_id=_tenant(arguments, resolved.config),
+        file_paths=_string_tuple(arguments, "file_paths"),
+        module=_optional_string(arguments, "module"),
+        error_pattern=_optional_string(arguments, "error_pattern"),
+        error_type=_optional_string(arguments, "error_type"),
+        tags=_string_tuple(arguments, "tags"),
+    )
+    suffix = f" ({result.warning})" if result.warning else ""
+    return [TextContent(type="text", text=f"Recorded {result.memory_id}{suffix}")]
 
 
 async def _handle_lookup(
     ctx: LazyDevMemMCPContext | DevMemMCPContext,
     arguments: dict[str, Any],
 ) -> Sequence[TextContent]:
-    resolved, error = await _resolve(ctx)
-    if resolved is None:
-        return error or []
+    resolved = await _resolve(ctx)
     result = await asyncio.to_thread(
         resolved.retriever.lookup,
         tenant_id=_tenant(arguments, resolved.config),
-        file_paths=tuple(str(path) for path in arguments.get("file_paths", []) or []),
-        include_kinds=arguments.get("include_kinds"),
-        limit=int(arguments.get("limit", 5)),
+        file_paths=_string_tuple(arguments, "file_paths", required=True),
+        include_kinds=_string_tuple(arguments, "include_kinds"),
+        limit=_limit(arguments),
     )
     return [TextContent(type="text", text=result.text)]
 
@@ -273,16 +311,14 @@ async def _handle_diagnose(
     ctx: LazyDevMemMCPContext | DevMemMCPContext,
     arguments: dict[str, Any],
 ) -> Sequence[TextContent]:
-    resolved, error = await _resolve(ctx)
-    if resolved is None:
-        return error or []
+    resolved = await _resolve(ctx)
     result = await asyncio.to_thread(
         resolved.retriever.diagnose,
         tenant_id=_tenant(arguments, resolved.config),
-        error_message=str(arguments["error_message"]),
-        error_type=arguments.get("error_type"),
-        file_path=arguments.get("file_path"),
-        limit=int(arguments.get("limit", 5)),
+        error_message=_required_string(arguments, "error_message"),
+        error_type=_optional_string(arguments, "error_type"),
+        file_path=_optional_string(arguments, "file_path"),
+        limit=_limit(arguments),
     )
     return [TextContent(type="text", text=result.text)]
 
@@ -291,14 +327,12 @@ async def _handle_feedback(
     ctx: LazyDevMemMCPContext | DevMemMCPContext,
     arguments: dict[str, Any],
 ) -> Sequence[TextContent]:
-    resolved, error = await _resolve(ctx)
-    if resolved is None:
-        return error or []
+    resolved = await _resolve(ctx)
     score = await asyncio.to_thread(
         resolved.feedback_recorder.record,
         tenant_id=_tenant(arguments, resolved.config),
-        note_id=str(arguments["memory_id"]),
-        rating=FeedbackRating(str(arguments["rating"])),
+        note_id=_required_string(arguments, "memory_id"),
+        rating=FeedbackRating(_required_string(arguments, "rating")),
     )
     return [TextContent(type="text", text=f"Recorded feedback score {score:.1f}")]
 
@@ -307,15 +341,13 @@ async def _handle_search(
     ctx: LazyDevMemMCPContext | DevMemMCPContext,
     arguments: dict[str, Any],
 ) -> Sequence[TextContent]:
-    resolved, error = await _resolve(ctx)
-    if resolved is None:
-        return error or []
+    resolved = await _resolve(ctx)
     result = await asyncio.to_thread(
         resolved.retriever.search,
         tenant_id=_tenant(arguments, resolved.config),
-        query=str(arguments["query"]),
-        kinds=arguments.get("kinds"),
-        limit=int(arguments.get("limit", 5)),
+        query=_required_string(arguments, "query"),
+        kinds=_string_tuple(arguments, "kinds"),
+        limit=_limit(arguments),
     )
     return [TextContent(type="text", text=result.text)]
 
@@ -325,9 +357,7 @@ async def _handle_status(
     arguments: dict[str, Any],
 ) -> Sequence[TextContent]:
     del arguments
-    resolved, error = await _resolve(ctx)
-    if resolved is None:
-        return error or []
+    resolved = await _resolve(ctx)
     note_count = await asyncio.to_thread(resolved.store.count_notes)
     text = "\n".join(
         (

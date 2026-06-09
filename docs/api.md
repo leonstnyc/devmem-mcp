@@ -17,5 +17,12 @@ The API uses the same environment variables as the CLI. For example:
 DEVMEM_SQLITE_PATH=.devmem/devmem.db devmem api
 ```
 
+Set `DEVMEM_API_KEY` to require bearer-token authentication:
+
+```bash
+DEVMEM_API_KEY=local-secret devmem api
+curl -H "Authorization: Bearer local-secret" http://127.0.0.1:8765/status
+```
+
 The base install does not include FastAPI or Uvicorn. If `devmem api` reports a
 missing extra, install `devmem-mcp[api]`.

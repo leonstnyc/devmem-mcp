@@ -12,6 +12,14 @@ devmem status
 `devmem status` should show `embedder: openai` when the key is present and
 `DEVMEM_FORCE_LOCAL_EMBEDDER` is not enabled.
 
+OpenAI embedding requests use `text-embedding-3-small` and a 10-second timeout
+by default. Override them with:
+
+```bash
+export DEVMEM_EMBEDDING_MODEL=text-embedding-3-large
+export DEVMEM_OPENAI_TIMEOUT_SECONDS=5
+```
+
 To force local embeddings even with an API key:
 
 ```bash

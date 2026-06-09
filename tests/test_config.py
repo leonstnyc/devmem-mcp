@@ -35,9 +35,11 @@ def test_config_normalizes_sqlite_and_tenant(monkeypatch, tmp_path: Path) -> Non
     monkeypatch.setenv("DEVMEM_SQLITE_PATH", str(db_path))
     monkeypatch.setenv("DEVMEM_TENANT_ID", "  ")
     monkeypatch.setenv("DEVMEM_PRIMARY_STORE", " SQLITE ")
+    monkeypatch.setenv("DEVMEM_OPENAI_TIMEOUT_SECONDS", "7.5")
 
     config = DevMemConfig()
 
     assert config.sqlite_path == str(db_path)
     assert config.primary_store == "sqlite"
     assert config.normalized_tenant_id() == "default"
+    assert config.openai_timeout_seconds == 7.5

@@ -44,3 +44,5 @@ jobs:
           python -m venv /tmp/devmem-api-smoke
           /tmp/devmem-api-smoke/bin/python -m pip install ".[api]"
           /tmp/devmem-api-smoke/bin/python -c "import fastapi, uvicorn; from devmem.api_server import create_app; assert create_app().title == 'DevMem'"
+          /tmp/devmem-api-smoke/bin/python -m pip install pytest
+          /tmp/devmem-api-smoke/bin/python -m pytest tests/test_api_server.py -q

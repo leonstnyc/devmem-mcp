@@ -4,10 +4,13 @@ import os
 import re
 import subprocess
 from dataclasses import dataclass, field
+from math import isfinite
 from pathlib import Path
 
 _GIT_REMOTE_TIMEOUT_SECONDS = 1.5
 _DEFAULT_SQLITE_PATH = "~/.devmem/devmem.db"
+_DEFAULT_OPENAI_EMBEDDING_MODEL = "text-embedding-3-small"
+_DEFAULT_OPENAI_TIMEOUT_SECONDS = 10.0
 
 
 def _env(name: str, default: str) -> str:
@@ -33,6 +36,17 @@ def _env_int(name: str, default: int, *, minimum: int = 1) -> int:
     except ValueError:
         return default
     return value if value >= minimum else default
+
+
+def _env_float(name: str, default: float, *, minimum: float = 0.1) -> float:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        value = float(raw)
+    except ValueError:
+        return default
+    return value if isfinite(value) and value >= minimum else default
 
 
 def _normalize_store(value: str) -> str:
@@ -103,7 +117,10 @@ class DevMemConfig:
         default_factory=lambda: _env_int("DEVMEM_CODE_MAX_SYMBOL_BYTES", 8192)
     )
     embedding_model: str = field(
-        default_factory=lambda: _env("DEVMEM_EMBEDDING_MODEL", "local-hash")
+        default_factory=lambda: _env(
+            "DEVMEM_EMBEDDING_MODEL",
+            _DEFAULT_OPENAI_EMBEDDING_MODEL,
+        )
     )
     embedding_dim: int = field(default_factory=lambda: _env_int("DEVMEM_EMBEDDING_DIM", 256))
     database_url: str = field(default_factory=lambda: _env("DEVMEM_DATABASE_URL", ""), repr=False)
@@ -114,6 +131,12 @@ class DevMemConfig:
         default_factory=lambda: _env_bool("DEVMEM_FORCE_LOCAL_EMBEDDER", False)
     )
     openai_api_key: str = field(default_factory=lambda: _env("OPENAI_API_KEY", ""), repr=False)
+    openai_timeout_seconds: float = field(
+        default_factory=lambda: _env_float(
+            "DEVMEM_OPENAI_TIMEOUT_SECONDS",
+            _DEFAULT_OPENAI_TIMEOUT_SECONDS,
+        )
+    )
     postgres_connect_timeout_seconds: int = field(
         default_factory=lambda: _env_int("DEVMEM_POSTGRES_CONNECT_TIMEOUT_SECONDS", 5)
     )

@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import json
 import math
+import posixpath
 import sqlite3
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -55,6 +58,36 @@ def _text_score(query: str, row: dict[str, Any]) -> float:
     return matches / len(terms)
 
 
+def _normalize_file_path(value: str) -> str:
+    path = posixpath.normpath(value.strip().replace("\\", "/"))
+    return "" if path == "." else path
+
+
+def _is_absolute_file_path(value: str) -> bool:
+    return value.startswith("/") or (len(value) >= 3 and value[1:3] == ":/")
+
+
+def _file_path_matches(left: str, right: str) -> bool:
+    left_path = _normalize_file_path(left)
+    right_path = _normalize_file_path(right)
+    if not left_path or not right_path:
+        return False
+    if left_path == right_path:
+        return True
+    if not (_is_absolute_file_path(left_path) or _is_absolute_file_path(right_path)):
+        return False
+
+    left_parts = tuple(part for part in left_path.split("/") if part)
+    right_parts = tuple(part for part in right_path.split("/") if part)
+    if len(left_parts) <= len(right_parts):
+        shorter, longer = left_parts, right_parts
+    else:
+        shorter, longer = right_parts, left_parts
+    if len(shorter) < 2:
+        return False
+    return longer[-len(shorter) :] == shorter
+
+
 @dataclass
 class SqliteDevMemStore:
     path: str
@@ -68,6 +101,18 @@ class SqliteDevMemStore:
         conn.row_factory = sqlite3.Row
         self._ensure_schema(conn)
         return conn
+
+    @contextmanager
+    def _connection(self) -> Iterator[sqlite3.Connection]:
+        conn = self._connect()
+        try:
+            yield conn
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
 
     def _ensure_schema(self, conn: sqlite3.Connection) -> None:
         if self._schema_ready:
@@ -175,7 +220,7 @@ class SqliteDevMemStore:
         embedding_status: str,
     ) -> None:
         now = _utcnow_iso()
-        with self._connect() as conn:
+        with self._connection() as conn:
             conn.execute(
                 """
                 INSERT INTO devmem_notes (
@@ -210,7 +255,7 @@ class SqliteDevMemStore:
             )
 
     def get_pending_notes(self, *, limit: int = 100) -> list[dict[str, Any]]:
-        with self._connect() as conn:
+        with self._connection() as conn:
             rows = conn.execute(
                 """
                 SELECT note_id, tenant_id, note_kind, summary_text, text, embedding_json,
@@ -225,7 +270,7 @@ class SqliteDevMemStore:
         return [self._row_to_result(row, similarity=0.0) for row in rows]
 
     def complete_pending_note(self, *, note_id: str, embedding: list[float]) -> None:
-        with self._connect() as conn:
+        with self._connection() as conn:
             conn.execute(
                 """
                 UPDATE devmem_notes
@@ -253,10 +298,8 @@ class SqliteDevMemStore:
         ]
         scored.sort(
             key=lambda item: (
-                float(item.get("similarity", 0.0)) + self.feedback_score(
-                    tenant_id=tenant_id, note_id=str(item["note_id"])
-                )
-                * 0.05,
+                float(item.get("similarity", 0.0))
+                + self.feedback_score(tenant_id=tenant_id, note_id=str(item["note_id"])) * 0.05,
                 str(item.get("created_at", "")),
             ),
             reverse=True,
@@ -287,7 +330,8 @@ class SqliteDevMemStore:
         include_kinds: tuple[str, ...] = (),
         limit: int = 5,
     ) -> list[dict[str, Any]]:
-        wanted = {path for path in file_paths if path}
+        wanted = {_normalize_file_path(path) for path in file_paths if path}
+        wanted.discard("")
         if not wanted:
             return []
         rows = self._candidate_rows(tenant_id=tenant_id, kinds=include_kinds, complete_only=False)
@@ -295,10 +339,22 @@ class SqliteDevMemStore:
         for row in rows:
             result = self._row_to_result(row, similarity=1.0)
             metadata = result.get("metadata")
-            row_paths = set(metadata.get("file_paths", [])) if isinstance(metadata, dict) else set()
+            raw_row_paths = metadata.get("file_paths", []) if isinstance(metadata, dict) else []
+            row_paths = {
+                _normalize_file_path(path) for path in raw_row_paths if isinstance(path, str)
+            }
             tags = set(result.get("tags", []))
-            tag_paths = {tag.removeprefix("file:") for tag in tags if tag.startswith("file:")}
-            if wanted.intersection(row_paths | tag_paths):
+            tag_paths = {
+                _normalize_file_path(tag.removeprefix("file:"))
+                for tag in tags
+                if isinstance(tag, str) and tag.startswith("file:")
+            }
+            available_paths = (row_paths | tag_paths) - {""}
+            if any(
+                _file_path_matches(wanted_path, row_path)
+                for wanted_path in wanted
+                for row_path in available_paths
+            ):
                 matches.append(result)
             if len(matches) >= limit:
                 break
@@ -312,7 +368,7 @@ class SqliteDevMemStore:
         rating: FeedbackRating,
     ) -> float:
         score = _RATING_SCORES[rating]
-        with self._connect() as conn:
+        with self._connection() as conn:
             conn.execute(
                 """
                 INSERT INTO devmem_feedback (tenant_id, note_id, rating, score, updated_at)
@@ -327,7 +383,7 @@ class SqliteDevMemStore:
         return score
 
     def feedback_score(self, *, tenant_id: str, note_id: str) -> float:
-        with self._connect() as conn:
+        with self._connection() as conn:
             row = conn.execute(
                 "SELECT score FROM devmem_feedback WHERE tenant_id = ? AND note_id = ?",
                 (tenant_id, note_id),
@@ -337,7 +393,7 @@ class SqliteDevMemStore:
         return float(row["score"])
 
     def count_notes(self) -> int:
-        with self._connect() as conn:
+        with self._connection() as conn:
             row = conn.execute("SELECT COUNT(*) AS count FROM devmem_notes").fetchone()
         return int(row["count"]) if row is not None else 0
 
@@ -357,7 +413,7 @@ class SqliteDevMemStore:
         if complete_only:
             predicates.append("embedding_status = 'complete'")
         where = " AND ".join(predicates)
-        with self._connect() as conn:
+        with self._connection() as conn:
             return conn.execute(
                 f"""
                 SELECT note_id, tenant_id, note_kind, summary_text, text, embedding_json,

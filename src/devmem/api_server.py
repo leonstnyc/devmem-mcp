@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import secrets
 from typing import Any
 
 from devmem.domain.errors import OptionalFeatureError
@@ -7,7 +8,12 @@ from devmem.domain.errors import OptionalFeatureError
 
 def create_app() -> Any:
     try:
-        from fastapi import FastAPI  # type: ignore[import-not-found]
+        from fastapi import (  # type: ignore[import-not-found]
+            Depends,
+            FastAPI,
+            Header,
+            HTTPException,
+        )
     except ImportError as exc:
         raise OptionalFeatureError(
             "The API server requires the 'api' extra. Install with: "
@@ -18,10 +24,19 @@ def create_app() -> Any:
     from devmem.infra.runtime import build_runtime
 
     app = FastAPI(title="DevMem")
+    config = DevMemConfig()
 
-    @app.get("/status")
+    def require_api_key(authorization: str | None = Header(default=None)) -> None:
+        if not config.api_key:
+            return
+        expected = f"Bearer {config.api_key}"
+        if authorization and secrets.compare_digest(authorization, expected):
+            return
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    @app.get("/status", dependencies=[Depends(require_api_key)])
     def status() -> dict[str, Any]:
-        runtime = build_runtime(DevMemConfig())
+        runtime = build_runtime(config)
         return {
             "store": runtime.store_type,
             "embedder": runtime.embedder_type,

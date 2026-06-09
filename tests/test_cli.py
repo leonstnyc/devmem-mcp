@@ -136,6 +136,36 @@ def test_cleanup_mcp_honors_age_gate(monkeypatch, capsys) -> None:
     assert "would kill PID 12345" in capsys.readouterr().out
 
 
+def test_cleanup_mcp_ignores_incidental_text_matches(monkeypatch, capsys) -> None:
+    import devmem.__main__ as main_module
+
+    ps_output = (
+        "  PID STARTED COMMAND\n"
+        "12345 Mon Jan  1 00:00:00 2001 /usr/bin/python -m devmem mcp\n"
+        "23456 Mon Jan  1 00:00:00 2001 /usr/bin/python note.py --text 'devmem mcp'\n"
+        "34567 Mon Jan  1 00:00:00 2001 /tmp/devmem mcp\n"
+        "45678 Mon Jan  1 00:00:00 2001 /usr/bin/devmemory mcp\n"
+    )
+
+    def fake_run(*args: Any, **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        del args, kwargs
+        return subprocess.CompletedProcess(
+            args=["ps"],
+            returncode=0,
+            stdout=ps_output,
+            stderr="",
+        )
+
+    monkeypatch.setattr(main_module.subprocess, "run", fake_run)
+
+    assert main(["cleanup-mcp", "--all", "--dry-run"]) == 0
+    output = capsys.readouterr().out
+    assert "would kill PID 12345" in output
+    assert "would kill PID 34567" in output
+    assert "23456" not in output
+    assert "45678" not in output
+
+
 def test_api_command_uses_optional_uvicorn_launcher(monkeypatch) -> None:
     import devmem.__main__ as main_module
 
@@ -174,3 +204,50 @@ def test_api_command_missing_extra_has_distribution_install_hint(monkeypatch) ->
 
     with pytest.raises(OptionalFeatureError, match=r"devmem-mcp\[api\]"):
         main(["api"])
+
+
+def test_embed_pending_uses_summary_and_text(monkeypatch, capsys) -> None:
+    import devmem.__main__ as main_module
+
+    embedded_texts: list[str] = []
+    completed: list[tuple[str, list[float]]] = []
+
+    class FakeEmbedder:
+        @staticmethod
+        def embed(text: str) -> list[float]:
+            embedded_texts.append(text)
+            return [1.0, 0.0]
+
+    class FakeStore:
+        path = "unused"
+
+        @staticmethod
+        def get_pending_notes(*, limit: int = 100) -> list[dict[str, str]]:
+            assert limit == 100
+            return [
+                {
+                    "note_id": "devmem:pending",
+                    "summary_text": "Summary matters",
+                    "text": "Body matters too",
+                }
+            ]
+
+        @staticmethod
+        def complete_pending_note(*, note_id: str, embedding: list[float]) -> None:
+            completed.append((note_id, embedding))
+
+    class FakeRuntime:
+        store = FakeStore()
+        embedder = FakeEmbedder()
+
+    def fake_build_runtime(config: object) -> FakeRuntime:
+        del config
+        return FakeRuntime()
+
+    monkeypatch.setattr(main_module, "build_runtime", fake_build_runtime)
+
+    assert main(["embed-pending"]) == 0
+
+    assert embedded_texts == ["Summary matters\n\nBody matters too"]
+    assert completed == [("devmem:pending", [1.0, 0.0])]
+    assert "Embedded 1/1 pending notes." in capsys.readouterr().out

@@ -6,6 +6,7 @@ import importlib
 import json
 import os
 import select
+import shlex
 import signal
 import subprocess
 import sys
@@ -363,10 +364,10 @@ def _run_cleanup_mcp(args: argparse.Namespace) -> int:
     our_ppid = os.getppid()
     now = time.time()
     for line in result.stdout.splitlines()[1:]:
-        if "devmem" not in line or "mcp" not in line:
-            continue
         parts = line.split(maxsplit=6)
         if len(parts) < 7:
+            continue
+        if not _is_devmem_mcp_command(parts[6]):
             continue
         try:
             pid = int(parts[0])
@@ -407,16 +408,45 @@ def _run_cleanup_mcp(args: argparse.Namespace) -> int:
     return 0
 
 
+def _is_devmem_mcp_command(command: str) -> bool:
+    try:
+        parts = shlex.split(command)
+    except ValueError:
+        parts = command.split()
+    for index, part in enumerate(parts):
+        name = Path(part).name
+        if name == "devmem" and index + 1 < len(parts) and parts[index + 1] == "mcp":
+            return True
+        if (
+            name.startswith("python")
+            and index + 3 < len(parts)
+            and parts[index + 1] == "-m"
+            and parts[index + 2] == "devmem"
+            and parts[index + 3] == "mcp"
+        ):
+            return True
+    return False
+
+
 def _run_embed_pending(_: argparse.Namespace) -> int:
     runtime = build_runtime(DevMemConfig())
     pending = runtime.store.get_pending_notes(limit=100)
     embedded = 0
     for note in pending:
         note_id = note.get("note_id")
+        summary_text = note.get("summary_text")
         text = note.get("text")
-        if not isinstance(note_id, str) or not isinstance(text, str):
+        if (
+            not isinstance(note_id, str)
+            or not isinstance(summary_text, str)
+            or not isinstance(text, str)
+        ):
             continue
-        runtime.store.complete_pending_note(note_id=note_id, embedding=runtime.embedder.embed(text))
+        embedding_text = f"{summary_text}\n\n{text}".strip()
+        runtime.store.complete_pending_note(
+            note_id=note_id,
+            embedding=runtime.embedder.embed(embedding_text),
+        )
         embedded += 1
     print(f"Embedded {embedded}/{len(pending)} pending notes.")
     return 0
